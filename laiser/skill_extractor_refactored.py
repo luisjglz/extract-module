@@ -347,7 +347,7 @@ class SkillExtractorRefactored:
                                 self.tokenizer, self.model, self.api_key, json_mode=False)
         cleaned = response.split("### CLEANED JOB DESCRIPTION:")[-1].strip()
         return cleaned
-        
+    
     def skill_extraction_prompt(self, cleaned_description):
         standard_prompt = f"""
         task: "Skill Extraction from Job Descriptions"
