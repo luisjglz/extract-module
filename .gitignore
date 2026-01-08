@@ -170,3 +170,6 @@ cython_debug/
 .vscode/
 .automations/
 test_extraction.py
+
+# Gemma GGUF model for Llama.cpp
+*.gguf  

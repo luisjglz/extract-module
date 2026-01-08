@@ -54,6 +54,7 @@ TODO:
 
 import os
 from typing import Dict, Any
+from pathlib import Path
 
 # Model Configuration
 DEFAULT_TRANSFORMER_MODEL_ID = "TheBloke/Mixtral-7B-Instruct-v0.1-AWQ"
@@ -178,3 +179,9 @@ Respond strictly in valid JSON with the exact keys 'Knowledge Required' and 'Tas
 
 # File paths
 ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+
+# LLAMA.CPP CONFIGURATION
+
+LLAMA_CPP_CTX = int(os.getenv("LAISER_LLAMA_CPP_CTX", 4096))
+LLAMA_CPP_THREADS = int(os.getenv("LAISER_LLAMA_CPP_THREADS", 0))
+MODEL_PATH = Path(__file__).resolve().parent / "public" / "gemma-3-4b-it-Q4_0.gguf"

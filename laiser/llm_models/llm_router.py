@@ -62,8 +62,17 @@ except ImportError as e:
     print(f"Warning: HuggingFace LLM support not available: {e}")
     def llm_generate_vllm(*args, **kwargs):
         raise ImportError("HuggingFace LLM support is not available. Please install required packages.")
+    
 
-def llm_router(prompt: str, model_id: str, use_gpu: bool, llm, tokenizer=None, model=None, api_key=None):
+try:
+    from laiser.llm_models.llama_cpp_backend import llama_cpp_generate
+except ImportError as e:
+    print(f"Warning: llama.cpp backend support not available: {e}")
+    def llama_cpp_generate(*args, **kwargs):
+        raise ImportError("llama.cpp backend support is not available. Please install llama-cpp-python package.")
+
+
+def llm_router(prompt: str, model_id: str, use_gpu: bool, llm, tokenizer=None, model=None, api_key=None, json_mode: bool = False):
     """
     Route LLM requests to appropriate model implementation.
     
@@ -91,6 +100,9 @@ def llm_router(prompt: str, model_id: str, use_gpu: bool, llm, tokenizer=None, m
     """
     if model_id == 'gemini':
         return gemini_generate(prompt, api_key)
+    
+    if model_id == "llama_cpp":
+        return llama_cpp_generate(prompt, llm, json_mode=json_mode)
 
     # Fallback: Hugging Face LLM
     return llm_generate_vllm(prompt, llm)
