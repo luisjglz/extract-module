@@ -8,8 +8,9 @@ This package contains various LLM model implementations and utilities.
 try:
     from .model_loader import load_model_from_vllm, load_model_from_transformer
     from .llm_router import llm_router
-    from .gemini import GeminiAPI
-    from .hugging_face_llm import HuggingFaceLLM
+    from .gemini import gemini_generate
+    from .hugging_face_llm import llm_generate_vllm
+    from .llama_cpp_backend import LlamaCppBackend
 except ImportError as e:
     # Handle missing dependencies gracefully
     import warnings
@@ -19,6 +20,7 @@ __all__ = [
     'load_model_from_vllm',
     'load_model_from_transformer', 
     'llm_router',
-    'GeminiAPI',
-    'HuggingFaceLLM'
+    'gemini_generate',
+    'llm_generate_vllm',
+    'LlamaCppBackend'
 ]

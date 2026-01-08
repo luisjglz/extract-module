@@ -61,18 +61,18 @@ import torch
 import spacy
 import pandas as pd
 from typing import List, Dict, Any, Optional, Union
-from pathlib import Path
 
 import json
 import re
+import os
 
-from laiser.config import DEFAULT_BATCH_SIZE, DEFAULT_TOP_K
+from laiser.config import DEFAULT_BATCH_SIZE, DEFAULT_TOP_K, LLAMA_CPP_CTX, LLAMA_CPP_THREADS, MODEL_PATH
 from laiser.exceptions import LAiSERError, InvalidInputError
 from laiser.services import SkillExtractionService
 from laiser.llm_models.model_loader import load_model_from_vllm, load_model_from_transformer
 from laiser.llm_models.llm_router import llm_router
 from laiser.llm_methods import get_completion, get_completion_vllm, get_ksa_details
-
+from laiser.llm_models.llama_cpp_backend import LlamaCppBackend
 
 class SkillExtractorRefactored:
     """
@@ -87,7 +87,8 @@ class SkillExtractorRefactored:
         model_id: Optional[str] = None, 
         hf_token: Optional[str] = None,
         api_key: Optional[str] = None, 
-        use_gpu: Optional[bool] = None
+        use_gpu: Optional[bool] = None,
+        backend: Optional[str] = None
     ):
         """
         Initialize the skill extractor.
@@ -107,6 +108,7 @@ class SkillExtractorRefactored:
         self.hf_token = hf_token
         self.api_key = api_key
         self.use_gpu = use_gpu if use_gpu is not None else torch.cuda.is_available()
+        self.backend = backend or model_id or "vllm"
         
         # Initialize service layer
         self.skill_service = SkillExtractionService()
@@ -124,12 +126,27 @@ class SkillExtractorRefactored:
         """Initialize required components based on configuration"""
         try:
             # Initialize SpaCy model
-            self._initialize_spacy()
+            # self._initialize_spacy()
             
             # Initialize LLM components
             if self.model_id == 'gemini':
                 print("Using Gemini API for skill extraction...")
                 # No local model needed for Gemini
+                return
+            elif self.backend == "llama_cpp":
+                print("Initializing llama.cpp CPU backend for skill extraction...")
+                self.llm = LlamaCppBackend(
+                    n_ctx=LLAMA_CPP_CTX,
+                    n_threads=LLAMA_CPP_THREADS or None,
+                    n_gpu_layers=0, 
+                    model_path=str(MODEL_PATH),
+                    chat_format="chatml",
+                    temperature=0.2,
+                )
+                print("Initialized llama.cpp CPU backend.")
+                # No HF/vLLM model needed in this path
+                self.model = None
+                self.tokenizer = None
                 return
             elif self.use_gpu and torch.cuda.is_available():
                 print("GPU available. Attempting to initialize vLLM model...")
@@ -169,13 +186,22 @@ class SkillExtractorRefactored:
     
     def _initialize_spacy(self):
         """Initialize SpaCy model"""
-        try:
-            self.nlp = spacy.load("en_core_web_lg")
+        # try:
+        #     self.nlp = spacy.load("en_core_web_lg")
+        #     print("Loaded en_core_web_lg model successfully.")
+        # except OSError:
+        #     print("Downloading en_core_web_lg model...")
+        #     spacy.cli.download("en_core_web_lg")
+        #     self.nlp = spacy.load("en_core_web_lg")
+        
+        if hasattr(self, "nlp") and self.nlp is not None:
             print("Loaded en_core_web_lg model successfully.")
-        except OSError:
-            print("Downloading en_core_web_lg model...")
-            spacy.cli.download("en_core_web_lg")
-            self.nlp = spacy.load("en_core_web_lg")
+            return  # already loaded
+
+        import spacy
+        print("Downloading en_core_web_lg model...")
+        self.nlp = spacy.load("en_core_web_lg")
+        
     
     def _initialize_vllm(self):
         """Initialize vLLM model"""
@@ -318,7 +344,7 @@ class SkillExtractorRefactored:
     ### CLEANED JOB DESCRIPTION:
     """
         response = llm_router(prompt, self.model_id, self.use_gpu, self.llm, 
-                                self.tokenizer, self.model, self.api_key)
+                                self.tokenizer, self.model, self.api_key, json_mode=False)
         cleaned = response.split("### CLEANED JOB DESCRIPTION:")[-1].strip()
         return cleaned
         
@@ -371,7 +397,7 @@ class SkillExtractorRefactored:
         # print("Cleaned Desc:::::::",cleaned_desc)
         extraction_prompt = self.skill_extraction_prompt(cleaned_desc)
         response = llm_router(extraction_prompt, self.model_id, self.use_gpu, self.llm, 
-                                self.tokenizer, self.model, self.api_key)
+                                self.tokenizer, self.model, self.api_key, json_mode=True)
         skills = self._parse_skills_from_response(response)
         if not skills:
             preview = response.strip().replace("\n", " ")[:200]
@@ -429,7 +455,6 @@ class SkillExtractorRefactored:
         # Apply defaults for top_k and similarity_threshold
         effective_top_k = top_k if top_k is not None else DEFAULT_TOP_K
         effective_threshold = similarity_threshold if similarity_threshold is not None else 0.20
-        
         try:
             results = []
             
